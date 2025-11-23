@@ -1,10 +1,12 @@
 import numpy as np
 import re
 import json
-import argparse
+import os
+import glob
 
 # BenchQ import for DFQPE resource estimation
-from benchq.problem_embeddings.qpe import get_double_factorized_qpe_toffoli_and_qubit_cost  # :contentReference[oaicite:19]{index=19}
+from benchq.problem_embeddings.qpe import get_double_factorized_qpe_toffoli_and_qubit_cost
+
 
 def parse_fcidump(filename):
     """
@@ -22,43 +24,42 @@ def parse_fcidump(filename):
             if "&END" in line or "/" in line:
                 break
         header = "".join(header_lines)
-        # Extract number of orbitals (NORB) from header
+
+        # Extract number of orbitals (NORB)
         match = re.search(r"NORB\s*=\s*(\d+)", header, re.IGNORECASE)
         if match:
             norb = int(match.group(1))
         else:
             raise ValueError(f"NORB not found in FCIDUMP header of {filename}")
+
         # Prepare containers for integrals
-        h1 = np.zeros((norb, norb), dtype=float)       # one-electron integrals matrix
-        eri = np.zeros((norb, norb, norb, norb), dtype=float)  # two-electron integrals tensor
+        h1 = np.zeros((norb, norb), dtype=float)
+        eri = np.zeros((norb, norb, norb, norb), dtype=float)
         ecore = 0.0
+
         # Read integral lines
         for line in f:
             parts = line.strip().split()
             if len(parts) < 5:
-                continue  # skip if line is empty or incomplete
+                continue
+
             # Parse value and indices
-            # Handle scientific notation 'D' exponent if present by replacing with 'E'
             val_str = parts[0].replace('D', 'E').replace('d', 'E')
             try:
                 val = float(val_str)
             except ValueError:
-                # Skip lines that don't parse as float (if any)
                 continue
+
             i, j, k, l = map(int, parts[1:5])
+
             if k == 0:
-                # This is a one-electron integral or core energy line
                 if j != 0:
-                    # One-electron term h(i,j)
                     h1[i-1, j-1] = val
-                    h1[j-1, i-1] = val  # ensure symmetry
+                    h1[j-1, i-1] = val
                 else:
-                    # Core energy term (all indices 0)
                     ecore = val
             else:
-                # Two-electron integral (i,j|k,l)
                 I, J, K, L = i-1, j-1, k-1, l-1
-                # Assign the value to all symmetric permutations to maintain (ij|kl) = (kl|ij) symmetry:contentReference[oaicite:20]{index=20}
                 eri[I, J, K, L] = val
                 eri[J, I, K, L] = val
                 eri[I, J, L, K] = val
@@ -67,21 +68,31 @@ def parse_fcidump(filename):
                 eri[L, K, I, J] = val
                 eri[K, L, J, I] = val
                 eri[L, K, J, I] = val
+
         return h1, eri, ecore
+
+
+def extract_bond_length_from_filename(path):
+    """
+    Extract bond length from filename like 'fcidump_N2_1.10.fcidump'
+    """
+    base = os.path.basename(path)
+    match = re.search(r"(\d+(?:\.\d+)?)", base)
+    if match:
+        return float(match.group(1))
+    return None
+
 
 def main():
     """
-    Automatically scan fcidumps/ directory and estimate resources
-    for every FCIDUMP file inside.
+    Automatically scan all FCIDUMP files in fcidumps/,
+    compute DF-QPE resource estimates, and output extended metrics.
     """
 
-    import glob
-
-    # Automatically find all FCIDUMP files
+    # Scan FCIDUMP directory
     fcidump_files = sorted(glob.glob("fcidumps/*.fcidump"))
-
     if not fcidump_files:
-        print("No FCIDUMP files found in directory 'fcidumps/'")
+        print("No FCIDUMP files found in 'fcidumps/'")
         return
 
     print("Found FCIDUMP files:")
@@ -90,32 +101,51 @@ def main():
     print()
 
     results = []
-    threshold = 1e-6  # You can adjust this if needed
+    threshold = 1e-6
 
     for file_path in fcidump_files:
         print(f"Processing: {file_path}")
 
         # Parse integrals
-        h1, eri, e_core = parse_fcidump(file_path)
+        h1, eri, ecore = parse_fcidump(file_path)
 
-        # BenchQ DF-QPE resource estimation
+        # Extra Hamiltonian-level info (Level 2)
+        n_orbitals = h1.shape[0]
+        n_h1_nonzero = int(np.count_nonzero(h1))
+        n_eri_nonzero = int(np.count_nonzero(eri))
+        lambda_approx = float(np.sum(np.abs(h1)) + np.sum(np.abs(eri)) + abs(ecore))
+
+        # Extract bond length from filename
+        bond_length = extract_bond_length_from_filename(file_path)
+
+        # BenchQ DF-QPE estimation
         toffoli_count, logical_qubits = get_double_factorized_qpe_toffoli_and_qubit_cost(
             h1, eri, threshold
         )
 
-        results.append({
+        result_entry = {
             "file": file_path,
+            "n_orbitals": int(n_orbitals),
+            "n_h1_nonzero": n_h1_nonzero,
+            "n_eri_nonzero": n_eri_nonzero,
+            "lambda_approx": lambda_approx,
+            "ecore": float(ecore),
             "toffoli_count": int(toffoli_count),
-            "logical_qubits": int(logical_qubits),
-            "ecore": float(e_core)
-        })
+            "logical_qubits": int(logical_qubits)
+        }
 
-    # Always write to results.json
+        if bond_length is not None:
+            result_entry["bond_length"] = bond_length
+
+        results.append(result_entry)
+
+    # Save to JSON
     with open("results.json", "w") as fout:
         json.dump(results, fout, indent=2)
 
-    print("\nResource estimates saved to results.json")
+    print("\nExtended resource estimates saved to results.json")
 
 
 if __name__ == "__main__":
     main()
+
