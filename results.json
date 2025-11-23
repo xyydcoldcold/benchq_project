@@ -1,0 +1,44 @@
+[
+  {
+    "file": "fcidumps/fcidump_N2_0.90.fcidump",
+    "toffoli_count": 449704200,
+    "logical_qubits": 365,
+    "ecore": 28.8107592612
+  },
+  {
+    "file": "fcidumps/fcidump_N2_1.00.fcidump",
+    "toffoli_count": 442800600,
+    "logical_qubits": 365,
+    "ecore": 25.92968333508
+  },
+  {
+    "file": "fcidumps/fcidump_N2_1.05.fcidump",
+    "toffoli_count": 440118630,
+    "logical_qubits": 365,
+    "ecore": 24.6949365096
+  },
+  {
+    "file": "fcidumps/fcidump_N2_1.10.fcidump",
+    "toffoli_count": 438720618,
+    "logical_qubits": 365,
+    "ecore": 23.57243939552727
+  },
+  {
+    "file": "fcidumps/fcidump_N2_1.15.fcidump",
+    "toffoli_count": 436736804,
+    "logical_qubits": 365,
+    "ecore": 22.54755072615653
+  },
+  {
+    "file": "fcidumps/fcidump_N2_1.20.fcidump",
+    "toffoli_count": 434874510,
+    "logical_qubits": 365,
+    "ecore": 21.6080694459
+  },
+  {
+    "file": "fcidumps/fcidump_N2_1.30.fcidump",
+    "toffoli_count": 418151040,
+    "logical_qubits": 365,
+    "ecore": 19.94591025775385
+  }
+]
