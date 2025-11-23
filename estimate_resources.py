@@ -78,13 +78,15 @@ def parse_fcidump(filename):
         return h1, eri, ecore
 
 
-def extract_bond_length_from_filename(path):
+def extract_bond_length_from_filename(path: str):
     """
-    Extract bond length from filename like 'fcidump_N2_1.30.fcidump' -> 1.30.
-    If not found, return None.
+    Extract bond length from filenames like:
+    'fcidump_N2_1.30.fcidump' -> 1.30
+
+    This regex intentionally avoids matching the '2' in 'N2'.
     """
     base = os.path.basename(path)
-    match = re.search(r"(\d+(?:\.\d+)?)", base)
+    match = re.search(r"_([0-9]+(?:\.[0-9]+)?)\.fcidump$", base)
     if match:
         return float(match.group(1))
     return None
